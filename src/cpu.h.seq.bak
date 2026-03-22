@@ -1,0 +1,39 @@
+#pragma once
+#include <array>
+#include <cstdint>
+#include "bus.h"
+
+class CPU {
+public:
+    explicit CPU(Bus& bus);
+
+    void reset(uint32_t pc);
+    void step();
+    void run(uint64_t max_cycles = 1000000);
+
+    void set_trace(bool enabled);
+    void dump_regs() const;
+
+private:
+    Bus& bus_;
+    uint32_t pc_ = 0;
+    std::array<uint32_t, 32> regs_{};
+    bool trace_ = false;
+
+    static int32_t sign_extend(uint32_t value, int bits);
+    uint32_t load_reg(uint32_t idx) const;
+    void store_reg(uint32_t idx, uint32_t value);
+
+    uint32_t fetch32(uint32_t addr);
+
+    void exec_lui(uint32_t inst);
+    void exec_auipc(uint32_t inst);
+    void exec_jal(uint32_t inst);
+    void exec_jalr(uint32_t inst);
+    void exec_branch(uint32_t inst);
+    void exec_load(uint32_t inst);
+    void exec_store(uint32_t inst);
+    void exec_op_imm(uint32_t inst);
+    void exec_op(uint32_t inst);
+    void exec_system(uint32_t inst);
+};

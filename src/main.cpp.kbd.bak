@@ -1,0 +1,79 @@
+#include <fstream>
+#include <iostream>
+#include <iterator>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+#include "bus.h"
+#include "cpu.h"
+#include "elf_loader.h"
+
+static std::vector<uint8_t> read_file(const std::string& path) {
+    std::ifstream ifs(path, std::ios::binary);
+    if (!ifs) {
+        throw std::runtime_error("Cannot open file: " + path);
+    }
+
+    return std::vector<uint8_t>(
+        std::istreambuf_iterator<char>(ifs),
+        std::istreambuf_iterator<char>()
+    );
+}
+
+int main(int argc, char** argv) {
+    try {
+        bool trace = false;
+        bool dump_regs = false;
+        std::string program_path;
+
+        for (int i = 1; i < argc; ++i) {
+            std::string arg = argv[i];
+            if (arg == "--trace") {
+                trace = true;
+            } else if (arg == "--dump-regs") {
+                dump_regs = true;
+            } else if (program_path.empty()) {
+                program_path = arg;
+            } else {
+                std::cerr << "Usage: rv32i_sim [--trace] [--dump-regs] <program.bin|program.elf>\n";
+                return 1;
+            }
+        }
+
+        if (program_path.empty()) {
+            std::cerr << "Usage: rv32i_sim [--trace] [--dump-regs] <program.bin|program.elf>\n";
+            return 1;
+        }
+
+        Bus bus;
+        CPU cpu(bus);
+        cpu.set_trace(trace);
+
+        uint32_t entry = Bus::RAM_BASE;
+
+        if (is_elf_file(program_path)) {
+            LoadedImage image = load_elf_into_bus(program_path, bus);
+            entry = image.entry;
+            std::cout << "[LOADER] ELF loaded, entry = 0x"
+                      << std::hex << entry << std::dec << "\n";
+        } else {
+            std::vector<uint8_t> prog = read_file(program_path);
+            bus.load_program(entry, prog);
+            std::cout << "[LOADER] Raw binary loaded at 0x"
+                      << std::hex << entry << std::dec << "\n";
+        }
+
+        cpu.reset(entry);
+        cpu.run();
+
+        if (dump_regs) {
+            cpu.dump_regs();
+        }
+
+        return 0;
+    } catch (const std::exception& e) {
+        std::cerr << "\n[SIM ERROR] " << e.what() << "\n";
+        return 1;
+    }
+}
